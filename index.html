@@ -128,14 +128,6 @@
   <!-- Filters -->
   <div class="filters" id="filtersRow">
     <div class="filter-group">
-      <span class="filter-label">CX Type</span>
-      <select class="filter-select" id="cxTypeFilter">
-        <option value="all">All</option>
-        <option value="nPayG" selected>nPayG</option>
-        <option value="PayG">PayG</option>
-      </select>
-    </div>
-    <div class="filter-group">
       <span class="filter-label">Pre — From</span>
       <input class="filter-input" type="date" id="preFrom"/>
     </div>
@@ -353,7 +345,6 @@ function autoSetDates() {
    APPLY FILTERS
 ═══════════════════════════════════ */
 function applyFilters() {
-  const cx      = document.getElementById('cxTypeFilter').value;
   const preFrom = new Date(document.getElementById('preFrom').value);
   const preTo   = new Date(document.getElementById('preTo').value);
   const postFrom= new Date(document.getElementById('postFrom').value);
@@ -363,7 +354,7 @@ function applyFilters() {
   function filterRows(from,to) {
     return rawRows.filter(r=>{
       const d=parseDateStr(r.DT);
-      return (cx==='all'||r.CX_TYPE===cx) && d>=from && d<=to;
+      return d>=from && d<=to;
     });
   }
 
@@ -397,8 +388,7 @@ function applyFilters() {
   }
 
   csvData={pre:buildPeriod(preRows),post:buildPeriod(postRows)};
-  const cxLabel=cx==='all'?'All CX':cx;
-  document.getElementById('dataBadge').textContent=`${cxLabel} · ${csvData.pre.label} vs ${csvData.post.label}`;
+  document.getElementById('dataBadge').textContent=`${csvData.pre.label} vs ${csvData.post.label}`;
 
   renderPeriods(); renderStats(); renderFooter(); updateTitle(); buildMainChart();
   if(showDelta) buildDeltaChart();
