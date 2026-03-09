@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>nPayG Recovery Cohort Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:      #080b14;
+    --surface: #0f1117;
+    --border:  #1e2235;
+    --border2: #2a2d3e;
+    --text:    #e6f1ff;
+    --muted:   #8892b0;
+    --subtle:  #3a3f5c;
+    --amber:   #F4B942;
+    --teal:    #64ffda;
+    --red:     #ff6b6b;
+    --green:   #00d68f;
+    --purple:  #c084fc;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; padding: 28px 24px; }
+
+  .header { margin-bottom: 24px; }
+  .header-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+  .accent-bar { width: 4px; height: 28px; background: linear-gradient(180deg, var(--teal), var(--amber)); border-radius: 2px; flex-shrink: 0; }
+  h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+  .badge { background: var(--surface); border: 1px solid var(--border2); border-radius: 20px; padding: 3px 12px; font-size: 11px; color: var(--muted); letter-spacing: 1px; margin-left: 8px; }
+  .subtitle { color: var(--muted); font-size: 13px; padding-left: 14px; }
+
+  /* Status bar */
+  .status-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--surface); border: 1px solid var(--border2); border-radius: 10px; margin-bottom: 20px; font-size: 12px; font-family: 'DM Mono', monospace; color: var(--muted); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .s-idle    { background: var(--subtle); }
+  .s-ok      { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .s-error   { background: var(--red); }
+  .s-loading { background: var(--amber); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .refresh-btn { margin-left: auto; background: transparent; border: 1px solid var(--border2); color: var(--teal); border-radius: 6px; padding: 5px 12px; font-size: 11px; cursor: pointer; font-family: 'DM Mono', monospace; transition: background .2s; white-space: nowrap; }
+  .refresh-btn:hover { background: #64ffda12; }
+  .refresh-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .last-updated { font-size: 10px; color: var(--subtle); margin-left: 6px; }
+
+  /* Filters */
+  .filters { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; align-items: flex-end; }
+  .filter-group { display: flex; flex-direction: column; gap: 5px; }
+  .filter-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+  .filter-select, .filter-input { background: var(--surface); border: 1px solid var(--border2); color: var(--text); border-radius: 8px; padding: 7px 12px; font-size: 12px; font-family: 'DM Sans', sans-serif; outline: none; cursor: pointer; }
+  .filter-select:focus, .filter-input:focus { border-color: var(--teal); }
+  .filter-input { font-family: 'DM Mono', monospace; width: 140px; }
+  .apply-btn { background: var(--surface); border: 1px solid var(--border2); color: var(--text); border-radius: 8px; padding: 7px 18px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: border-color .2s, color .2s; align-self: flex-end; }
+  .apply-btn:hover { border-color: var(--teal); color: var(--teal); }
+
+  /* Period chips */
+  .periods { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .period-chip { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border2); border-radius: 8px; padding: 8px 14px; }
+  .chip-line { width: 28px; height: 3px; border-radius: 2px; }
+  .chip-label { font-size: 12px; font-weight: 600; }
+  .chip-sub { font-size: 10px; color: var(--muted); }
+  .chip-sub span { color: #ccd6f6; }
+
+  /* Tabs */
+  .controls { display: flex; gap: 8px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
+  .tab-btn { background: transparent; border: 1px solid #ffffff11; color: var(--muted); border-radius: 8px; padding: 8px 20px; font-size: 13px; font-weight: 400; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all .2s; }
+  .tab-btn.active { background: var(--surface); border-color: var(--border2); color: var(--text); font-weight: 600; }
+  .tab-btn:hover:not(.active) { border-color: var(--border2); color: var(--text); }
+  .delta-btn { margin-left: auto; background: transparent; border: 1px solid #ffffff11; color: var(--muted); border-radius: 8px; padding: 8px 16px; font-size: 12px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all .2s; }
+  .delta-btn.active { background: var(--surface); border-color: var(--border2); color: var(--teal); }
+
+  /* Stat cards */
+  .stats { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+  .stat-card { background: var(--surface); border-radius: 12px; padding: 16px 20px; flex: 1; min-width: 140px; transition: border .2s; }
+  .stat-label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  .stat-values { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 6px; }
+  .stat-pre { color: var(--amber); font-size: 13px; font-family: 'DM Mono', monospace; }
+  .stat-arrow { color: var(--muted); font-size: 11px; }
+  .stat-post { font-size: 13px; font-family: 'DM Mono', monospace; }
+  .stat-delta { display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; padding: 3px 8px; font-size: 13px; font-weight: 700; font-family: 'DM Mono', monospace; }
+  .delta-pos { background: #00d68f15; color: var(--green); }
+  .delta-neg { background: #ff6b6b15; color: var(--red); }
+
+  /* Charts */
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px 20px 16px; margin-bottom: 16px; }
+  .chart-title { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 20px; }
+
+  /* Loading skeleton */
+  .skeleton { background: linear-gradient(90deg, var(--surface) 25%, #1a1f2e 50%, var(--surface) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 8px; }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  .skel-chart { height: 200px; margin-bottom: 16px; }
+  .skel-stat { height: 80px; flex: 1; min-width: 140px; }
+  .skel-row { display: flex; gap: 10px; margin-bottom: 24px; }
+
+  /* Error state */
+  .error-box { background: #ff6b6b0a; border: 1px solid #ff6b6b33; border-radius: 12px; padding: 24px; text-align: center; color: var(--red); font-size: 13px; margin-bottom: 20px; }
+  .error-box .err-icon { font-size: 28px; margin-bottom: 8px; }
+  .error-box .err-sub { color: var(--muted); font-size: 11px; margin-top: 8px; font-family: 'DM Mono', monospace; }
+  .fallback-note { color: var(--muted); font-size: 12px; margin-top: 12px; line-height: 1.6; }
+  .fallback-note a { color: var(--teal); }
+
+  footer { color: var(--subtle); font-size: 10px; text-align: center; margin-top: 20px; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-row">
+    <div class="accent-bar"></div>
+    <h1>Router Pickup Recovery Cohort</h1>
+    <span class="badge" id="dataBadge">Loading…</span>
+  </div>
+  <p class="subtitle">Cumulative recovery rate (% of tickets) · D1 through D21 · avg across cohorts</p>
+</div>
+
+<!-- Status bar -->
+<div class="status-bar">
+  <div class="status-dot s-loading" id="statusDot"></div>
+  <span id="statusMsg">Fetching live data from Metabase…</span>
+  <span class="last-updated" id="lastUpdated"></span>
+  <button class="refresh-btn" id="refreshBtn" onclick="loadData()" disabled>⟳ Refresh</button>
+</div>
+
+<!-- Main content (hidden until loaded) -->
+<div id="mainContent" style="display:none">
+
+  <!-- Filters -->
+  <div class="filters" id="filtersRow">
+    <div class="filter-group">
+      <span class="filter-label">CX Type</span>
+      <select class="filter-select" id="cxTypeFilter">
+        <option value="all">All</option>
+        <option value="nPayG" selected>nPayG</option>
+        <option value="PayG">PayG</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Ticket Created at R15</span>
+      <select class="filter-select" id="r15Filter">
+        <option value="all">All</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Pre — From</span>
+      <input class="filter-input" type="date" id="preFrom"/>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Pre — To</span>
+      <input class="filter-input" type="date" id="preTo"/>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Post — From</span>
+      <input class="filter-input" type="date" id="postFrom"/>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Post — To</span>
+      <input class="filter-input" type="date" id="postTo"/>
+    </div>
+    <button class="apply-btn" onclick="applyFilters()">Apply ↵</button>
+  </div>
+
+  <div class="periods" id="periods"></div>
+
+  <div class="controls">
+    <button class="tab-btn active" onclick="setTab('rr')">🔴 Router Recovered</button>
+    <button class="tab-btn"        onclick="setTab('cr')">🟢 Customer Recharged</button>
+    <button class="tab-btn"        onclick="setTab('tr')">🟣 Total Recovery</button>
+    <button class="delta-btn" id="deltaBtn" onclick="toggleDelta()">▲▼ Show Delta</button>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="chart-card">
+    <p class="chart-title" id="mainTitle">Router Recovered % · Cumulative by Day</p>
+    <canvas id="mainChart" height="90"></canvas>
+  </div>
+
+  <div class="chart-card" id="deltaCard" style="display:none;">
+    <p class="chart-title">Δ Delta (Post − Pre) in percentage points</p>
+    <canvas id="deltaChart" height="55"></canvas>
+  </div>
+
+</div>
+
+<!-- Loading skeleton -->
+<div id="loadingSkeleton">
+  <div class="skel-row">
+    <div class="skeleton skel-stat"></div>
+    <div class="skeleton skel-stat"></div>
+    <div class="skeleton skel-stat"></div>
+    <div class="skeleton skel-stat"></div>
+  </div>
+  <div class="skeleton skel-chart"></div>
+</div>
+
+<!-- Error state -->
+<div id="errorBox" style="display:none">
+  <div class="error-box">
+    <div class="err-icon">⚠️</div>
+    <div id="errorMsg">Failed to fetch data</div>
+    <div class="err-sub" id="errorDetail"></div>
+    <div class="fallback-note" id="fallbackNote"></div>
+  </div>
+</div>
+
+<footer id="footer"></footer>
+
+<script>
+/* ═══════════════════════════════════
+   CONFIG — hardcoded Metabase UUID
+═══════════════════════════════════ */
+const MB_UUID    = 'ba5ebb1e-ec24-4970-9dd1-1f01b43267bd';
+const MB_CSV_URL = `https://metabase.wiom.in/api/public/card/${MB_UUID}/query/csv`;
+// CORS proxies tried in order
+const PROXIES = [
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://thingproxy.freeboard.io/fetch/${url}`,
+];
+
+/* ═══════════════════════════════════
+   STATE
+═══════════════════════════════════ */
+let rawRows   = [];
+let csvData   = null;
+let activeTab = 'rr';
+let showDelta = false;
+let mainChart = null;
+let deltaChart= null;
+
+const DAYS   = Array.from({length:21},(_,i)=>`D${i+1}`);
+const AMBER  = '#F4B942', TEAL = '#64ffda', RED = '#ff6b6b';
+const GREEN  = '#00d68f', PURPLE = '#c084fc', MUTED = '#8892b0';
+
+/* ═══════════════════════════════════
+   FETCH + PARSE
+═══════════════════════════════════ */
+async function loadData() {
+  setStatus('loading', 'Fetching live data from Metabase…');
+  document.getElementById('refreshBtn').disabled = true;
+  document.getElementById('loadingSkeleton').style.display = 'block';
+  document.getElementById('mainContent').style.display = 'none';
+  document.getElementById('errorBox').style.display = 'none';
+
+  try {
+    let text = null, lastErr = '';
+    const fetchers = [
+      { label: 'direct',          fn: () => fetch(MB_CSV_URL) },
+      { label: 'corsproxy.io',    fn: () => fetch(`https://corsproxy.io/?${encodeURIComponent(MB_CSV_URL)}`) },
+      { label: 'allorigins',      fn: () => fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(MB_CSV_URL)}`) },
+      { label: 'thingproxy',      fn: () => fetch(`https://thingproxy.freeboard.io/fetch/${MB_CSV_URL}`) },
+    ];
+    for (let i = 0; i < fetchers.length; i++) {
+      try {
+        setStatus('loading', `Connecting via ${fetchers[i].label}…`);
+        const res = await fetchers[i].fn();
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const t = await res.text();
+        if (t && t.includes('DT') && t.includes('RR_D')) { text = t; break; }
+        throw new Error('Response did not look like expected CSV');
+      } catch(e) { lastErr = `${fetchers[i].label}: ${e.message}`; }
+    }
+    if (!text) throw new Error(`All fetch attempts failed. Last error — ${lastErr}`);
+    rawRows = parseCSV(text);
+    if (!rawRows.length || !rawRows[0].DT) throw new Error('Unexpected CSV format from Metabase');
+
+    document.getElementById('loadingSkeleton').style.display = 'none';
+    document.getElementById('mainContent').style.display = 'block';
+
+    autoSetDates();
+    populateR15Filter();
+    applyFilters();
+
+    const now = new Date().toLocaleString('en-IN', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+    document.getElementById('lastUpdated').textContent = `· Last updated: ${now}`;
+    setStatus('ok', `Live data · ${rawRows.length} cohort rows loaded`);
+    document.getElementById('refreshBtn').disabled = false;
+
+  } catch(err) {
+    document.getElementById('loadingSkeleton').style.display = 'none';
+    document.getElementById('errorBox').style.display = 'block';
+    document.getElementById('errorMsg').textContent  = 'Could not fetch live data from Metabase';
+    document.getElementById('errorDetail').textContent = err.message;
+    document.getElementById('fallbackNote').innerHTML = `
+      This is usually a <strong>CORS restriction</strong> — the browser blocks cross-origin requests to Metabase from GitHub Pages.<br><br>
+      Ask your tech team to whitelist <code>https://Himanshuwiom.github.io</code> in Metabase's CORS config,
+      or <a href="${MB_CSV_URL}" target="_blank">download the CSV directly</a> and use the upload fallback below.
+      <br><br>
+      <label style="cursor:pointer; color:var(--teal)">📂 Upload CSV instead
+        <input type="file" accept=".csv" style="display:none" onchange="handleFileSelect(event)"/>
+      </label>`;
+    setStatus('error', `Fetch failed — ${err.message}`);
+    document.getElementById('refreshBtn').disabled = false;
+    document.getElementById('dataBadge').textContent = 'Fetch failed';
+  }
+}
+
+/* ═══════════════════════════════════
+   POPULATE R15 FILTER
+═══════════════════════════════════ */
+function populateR15Filter() {
+  const sel = document.getElementById('r15Filter');
+  const col = 'TICKET_CREATED_AT_R15';
+  sel.parentElement.style.display = 'flex'; // always show
+  if (!rawRows.length || !(col in rawRows[0])) {
+    sel.innerHTML = '<option value="all">Not in data yet</option>';
+    sel.disabled = true;
+    sel.style.opacity = '0.4';
+    return;
+  }
+  sel.disabled = false;
+  sel.style.opacity = '1';
+  const vals = [...new Set(rawRows.map(r => r[col]).filter(v => v !== '' && v != null))].sort();
+  sel.innerHTML = '<option value="all">All</option>';
+  vals.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v; opt.textContent = v;
+    sel.appendChild(opt);
+  });
+}
+
+/* ═══════════════════════════════════
+   CSV FALLBACK (file upload)
+═══════════════════════════════════ */
+function handleFileSelect(e) {
+  const file = e.target.files[0]; if (!file) return;
+  setStatus('loading', `Reading ${file.name}…`);
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      rawRows = parseCSV(ev.target.result);
+      if (!rawRows.length) throw new Error('Empty file');
+      document.getElementById('errorBox').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'block';
+      autoSetDates();
+      applyFilters();
+      setStatus('ok', `CSV loaded · ${rawRows.length} rows · from ${file.name}`);
+      document.getElementById('refreshBtn').disabled = false;
+    } catch(err) {
+      setStatus('error', `Parse error: ${err.message}`);
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* ═══════════════════════════════════
+   CSV PARSER
+═══════════════════════════════════ */
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
+  return lines.slice(1).map(line => {
+    const vals=[]; let cur='', inQ=false;
+    for (let ch of line) {
+      if (ch==='"') inQ=!inQ;
+      else if (ch===',' && !inQ) { vals.push(cur.trim()); cur=''; }
+      else cur+=ch;
+    }
+    vals.push(cur.trim());
+    const obj={};
+    headers.forEach((h,i) => obj[h]=(vals[i]||'').replace(/^"|"$/g,''));
+    return obj;
+  }).filter(r=>r.DT);
+}
+
+function parseDateStr(s) { return new Date(s.replace(/^"|"$/g,'')); }
+function toInputDate(d)  { return d.toISOString().split('T')[0]; }
+
+/* ═══════════════════════════════════
+   AUTO DATES
+═══════════════════════════════════ */
+function autoSetDates() {
+  const dates = rawRows.map(r=>parseDateStr(r.DT)).sort((a,b)=>a-b);
+  const first=dates[0], last=dates[dates.length-1];
+  const mid=new Date((first.getTime()+last.getTime())/2);
+  document.getElementById('preFrom').value  = toInputDate(first);
+  document.getElementById('preTo').value    = toInputDate(mid);
+  document.getElementById('postFrom').value = toInputDate(new Date(mid.getTime()+86400000));
+  document.getElementById('postTo').value   = toInputDate(last);
+}
+
+/* ═══════════════════════════════════
+   APPLY FILTERS
+═══════════════════════════════════ */
+function applyFilters() {
+  const cx      = document.getElementById('cxTypeFilter').value;
+  const preFrom = new Date(document.getElementById('preFrom').value);
+  const preTo   = new Date(document.getElementById('preTo').value);
+  const postFrom= new Date(document.getElementById('postFrom').value);
+  const postTo  = new Date(document.getElementById('postTo').value);
+  if (!rawRows.length) return;
+
+  function filterRows(from,to) {
+    const r15Val = document.getElementById('r15Filter').value;
+    return rawRows.filter(r=>{
+      const d=parseDateStr(r.DT);
+      const cxOk  = cx==='all' || r.CX_TYPE===cx;
+      const r15Ok = r15Val==='all' || !r.TICKET_CREATED_AT_R15 || r.TICKET_CREATED_AT_R15===r15Val;
+      return cxOk && r15Ok && d>=from && d<=to;
+    });
+  }
+
+  const preRows =filterRows(preFrom,preTo);
+  const postRows=filterRows(postFrom,postTo);
+  if (!preRows.length||!postRows.length) { setStatus('error','No data in one or both periods — adjust date range'); return; }
+
+  function avgMetric(rows,prefix) {
+    return Array.from({length:21},(_,i)=>{
+      const col=`${prefix}_D${i+1}`; let sum=0,count=0;
+      rows.forEach(r=>{
+        const total=parseFloat(r.TOTAL_TICKETS), val=parseFloat(r[col]);
+        if(!isNaN(total)&&!isNaN(val)&&total>0){sum+=(val/total)*100;count++;}
+      });
+      return count>0?parseFloat((sum/count).toFixed(2)):0;
+    });
+  }
+
+  function fmtRange(rows) {
+    const dates=rows.map(r=>parseDateStr(r.DT)).sort((a,b)=>a-b);
+    const fmt=d=>d.toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+    return `${fmt(dates[0])} – ${fmt(dates[dates.length-1])}`;
+  }
+
+  function totalTix(rows){return rows.reduce((s,r)=>s+parseFloat(r.TOTAL_TICKETS||0),0);}
+
+  function buildPeriod(rows){
+    const rr=avgMetric(rows,'RR'), cr=avgMetric(rows,'CR');
+    const tr=rr.map((v,i)=>parseFloat((v+cr[i]).toFixed(2)));
+    return {label:fmtRange(rows),total:Math.round(totalTix(rows)),days:rows.length,rr,cr,tr};
+  }
+
+  csvData={pre:buildPeriod(preRows),post:buildPeriod(postRows)};
+  const cxLabel=cx==='all'?'All CX':cx;
+  document.getElementById('dataBadge').textContent=`${cxLabel} · ${csvData.pre.label} vs ${csvData.post.label}`;
+
+  renderPeriods(); renderStats(); renderFooter(); updateTitle(); buildMainChart();
+  if(showDelta) buildDeltaChart();
+}
+
+/* ═══════════════════════════════════
+   STATUS
+═══════════════════════════════════ */
+function setStatus(type,msg){
+  document.getElementById('statusDot').className=`status-dot s-${type==='ok'?'ok':type==='error'?'error':'loading'}`;
+  document.getElementById('statusMsg').textContent=msg;
+}
+
+/* ═══════════════════════════════════
+   CHART HELPERS
+═══════════════════════════════════ */
+function buildData(metric){
+  return DAYS.map((d,i)=>({
+    day:d, pre:csvData.pre[metric][i], post:csvData.post[metric][i],
+    delta:parseFloat((csvData.post[metric][i]-csvData.pre[metric][i]).toFixed(2))
+  }));
+}
+
+const tooltipPlugin={
+  callbacks:{
+    title:items=>items[0].label,
+    label:item=>{const v=item.raw,isDelta=item.dataset.label.startsWith('Δ');return`  ${item.dataset.label}: ${isDelta?(v>=0?'+':'')+v.toFixed(2)+'pp':v.toFixed(2)+'%'}`;}
+  },
+  backgroundColor:'#0f1117',borderColor:'#2a2d3e',borderWidth:1,
+  titleColor:MUTED,bodyColor:'#e6f1ff',padding:12,
+  titleFont:{family:"'DM Mono',monospace",size:11},bodyFont:{family:"'DM Mono',monospace",size:12},
+  cornerRadius:10,displayColors:true,boxPadding:4
+};
+const gridOpts={color:'#1e2235',drawTicks:false};
+const tickOpts={color:MUTED,font:{family:"'DM Mono',monospace",size:11},padding:8};
+
+function buildMainChart(){
+  if(!csvData) return;
+  const metric=activeTab,isRR=metric==='rr',isTR=metric==='tr';
+  const data=buildData(metric),postColor=isRR?RED:isTR?PURPLE:TEAL;
+  if(mainChart){mainChart.destroy();mainChart=null;}
+  const ctx=document.getElementById('mainChart').getContext('2d');
+  const gradPre=ctx.createLinearGradient(0,0,0,320);
+  gradPre.addColorStop(0,AMBER+'28');gradPre.addColorStop(1,AMBER+'00');
+  const gradPost=ctx.createLinearGradient(0,0,0,320);
+  gradPost.addColorStop(0,postColor+'28');gradPost.addColorStop(1,postColor+'00');
+  mainChart=new Chart(ctx,{
+    type:'line',
+    data:{labels:DAYS,datasets:[
+      {label:`Pre  (${csvData.pre.label})`,data:data.map(d=>d.pre),borderColor:AMBER,backgroundColor:gradPre,borderWidth:2.5,fill:true,tension:0.35,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:AMBER},
+      {label:`Post (${csvData.post.label})`,data:data.map(d=>d.post),borderColor:postColor,backgroundColor:gradPost,borderWidth:2.5,borderDash:isRR?[6,3]:[],fill:true,tension:0.35,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:postColor}
+    ]},
+    options:{
+      responsive:true,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:MUTED,font:{family:"'DM Sans',sans-serif",size:12},boxWidth:24,boxHeight:3,usePointStyle:false,padding:20}},tooltip:tooltipPlugin},
+      scales:{
+        x:{grid:{...gridOpts,drawOnChartArea:false},ticks:tickOpts,border:{color:'#2a2d3e'}},
+        y:{grid:gridOpts,ticks:{...tickOpts,callback:v=>v+'%'},border:{dash:[3,3],color:'transparent'}}
+      }
+    }
+  });
+}
+
+function buildDeltaChart(){
+  if(!csvData) return;
+  const metric=activeTab,isRR=metric==='rr',isTR=metric==='tr';
+  const data=buildData(metric);
+  if(deltaChart){deltaChart.destroy();deltaChart=null;}
+  const ctx=document.getElementById('deltaChart').getContext('2d');
+  deltaChart=new Chart(ctx,{
+    type:'bar',
+    data:{labels:DAYS,datasets:[{
+      label:`Δ ${isRR?'RR':isTR?'TR':'CR'} (Post−Pre)`,
+      data:data.map(d=>d.delta),
+      backgroundColor:data.map(d=>d.delta>=0?GREEN+'cc':RED+'cc'),
+      borderColor:data.map(d=>d.delta>=0?GREEN:RED),
+      borderWidth:1,borderRadius:4
+    }]},
+    options:{
+      responsive:true,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false},tooltip:tooltipPlugin},
+      scales:{
+        x:{grid:{...gridOpts,drawOnChartArea:false},ticks:tickOpts,border:{color:'#2a2d3e'}},
+        y:{grid:gridOpts,ticks:{...tickOpts,callback:v=>(v>0?'+':'')+v+'pp'},border:{dash:[3,3],color:'transparent'}}
+      }
+    }
+  });
+}
+
+function renderStats(){
+  if(!csvData) return;
+  const metric=activeTab,isRR=metric==='rr',isTR=metric==='tr';
+  const postColor=isRR?RED:isTR?PURPLE:TEAL;
+  const container=document.getElementById('stats'); container.innerHTML='';
+  [1,7,14,21].forEach(d=>{
+    const i=d-1,pre=csvData.pre[metric][i],post=csvData.post[metric][i];
+    const delta=parseFloat((post-pre).toFixed(2)),pos=delta>=0;
+    const card=document.createElement('div'); card.className='stat-card';
+    card.style.border=`1px solid ${pos?'#00d68f22':'#ff6b6b22'}`;
+    card.innerHTML=`<p class="stat-label">By Day ${d}</p>
+      <div class="stat-values">
+        <span class="stat-pre">${pre.toFixed(1)}%</span>
+        <span class="stat-arrow">→</span>
+        <span class="stat-post" style="color:${postColor}">${post.toFixed(1)}%</span>
+      </div>
+      <span class="stat-delta ${pos?'delta-pos':'delta-neg'}">${pos?'▲':'▼'} ${Math.abs(delta).toFixed(1)}pp</span>`;
+    container.appendChild(card);
+  });
+}
+
+function renderPeriods(){
+  if(!csvData) return;
+  document.getElementById('periods').innerHTML=[
+    {label:'Pre-period', color:AMBER,period:csvData.pre.label, tickets:csvData.pre.total, days:csvData.pre.days},
+    {label:'Post-period',color:TEAL, period:csvData.post.label,tickets:csvData.post.total,days:csvData.post.days}
+  ].map(p=>`<div class="period-chip">
+    <div class="chip-line" style="background:${p.color}"></div>
+    <div>
+      <p class="chip-label" style="color:${p.color}">${p.label}</p>
+      <p class="chip-sub">${p.period} · <span>${p.tickets.toLocaleString()} tickets · ${p.days} cohorts</span></p>
+    </div>
+  </div>`).join('');
+}
+
+function renderFooter(){
+  if(!csvData) return;
+  document.getElementById('footer').textContent=
+    `Wiom nPayG Recovery Cohort · Source: Metabase Q10259 · Pre: ${csvData.pre.label} · Post: ${csvData.post.label} · Cumulative avg % across cohorts`;
+}
+
+function updateTitle(){
+  document.getElementById('mainTitle').textContent=
+    (activeTab==='rr'?'Router Recovered %':activeTab==='tr'?'Total Recovery % (Router + Recharge)':'Customer Recharged %')+' · Cumulative by Day (avg across cohorts)';
+}
+
+function syncTabBtns(){
+  const tabs=['rr','cr','tr'];
+  document.querySelectorAll('.tab-btn').forEach((btn,i)=>btn.classList.toggle('active',tabs[i]===activeTab));
+}
+function setTab(tab){activeTab=tab;syncTabBtns();updateTitle();renderStats();buildMainChart();if(showDelta)buildDeltaChart();}
+function toggleDelta(){
+  showDelta=!showDelta;
+  const btn=document.getElementById('deltaBtn'),card=document.getElementById('deltaCard');
+  btn.classList.toggle('active',showDelta);
+  btn.textContent=showDelta?'▲▼ Hide Delta':'▲▼ Show Delta';
+  card.style.display=showDelta?'block':'none';
+  if(showDelta)buildDeltaChart();
+}
+
+/* ═══════════════════════════════════
+   INIT — auto-load on page open
+═══════════════════════════════════ */
+loadData();
+</script>
+</body>
+</html>
