@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>nPayG Recovery Cohort Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #080b14;
+    --surface:   #0f1117;
+    --border:    #1e2235;
+    --border2:   #2a2d3e;
+    --text:      #e6f1ff;
+    --muted:     #8892b0;
+    --subtle:    #3a3f5c;
+    --amber:     #F4B942;
+    --teal:      #64ffda;
+    --red:       #ff6b6b;
+    --green:     #00d68f;
+    --purple:    #c084fc;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    padding: 28px 24px;
+  }
+
+  /* ── Header ── */
+  .header { margin-bottom: 28px; }
+  .header-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .accent-bar { width: 4px; height: 28px; background: linear-gradient(180deg, var(--teal), var(--amber)); border-radius: 2px; }
+  h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+  .badge {
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 20px; padding: 3px 12px;
+    font-size: 11px; color: var(--muted); letter-spacing: 1px; margin-left: 8px;
+  }
+  .subtitle { color: var(--muted); font-size: 13px; padding-left: 14px; }
+
+  /* ── Period chips ── */
+  .periods { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .period-chip {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 8px; padding: 8px 14px;
+  }
+  .chip-line { width: 28px; height: 3px; border-radius: 2px; }
+  .chip-label { font-size: 12px; font-weight: 600; }
+  .chip-sub { font-size: 10px; color: var(--muted); }
+  .chip-sub span { color: #ccd6f6; }
+
+  /* ── Tabs ── */
+  .controls { display: flex; gap: 8px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
+  .tab-btn {
+    background: transparent; border: 1px solid #ffffff11;
+    color: var(--muted); border-radius: 8px; padding: 8px 20px;
+    font-size: 13px; font-weight: 400; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; transition: all .2s;
+  }
+  .tab-btn.active {
+    background: var(--surface); border-color: var(--border2);
+    color: var(--text); font-weight: 600;
+  }
+  .tab-btn:hover:not(.active) { border-color: var(--border2); color: var(--text); }
+  .delta-btn {
+    margin-left: auto; background: transparent;
+    border: 1px solid #ffffff11; color: var(--muted);
+    border-radius: 8px; padding: 8px 16px; font-size: 12px;
+    cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all .2s;
+  }
+  .delta-btn.active { background: var(--surface); border-color: var(--border2); color: var(--teal); }
+
+  /* ── Stat cards ── */
+  .stats { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+  .stat-card {
+    background: var(--surface); border-radius: 12px; padding: 16px 20px;
+    flex: 1; min-width: 140px; transition: border .2s;
+  }
+  .stat-label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  .stat-values { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 6px; }
+  .stat-pre { color: var(--amber); font-size: 13px; font-family: 'DM Mono', monospace; }
+  .stat-arrow { color: var(--muted); font-size: 11px; }
+  .stat-post { font-size: 13px; font-family: 'DM Mono', monospace; }
+  .stat-delta {
+    display: inline-flex; align-items: center; gap: 4px;
+    border-radius: 6px; padding: 3px 8px;
+    font-size: 13px; font-weight: 700; font-family: 'DM Mono', monospace;
+  }
+  .delta-pos { background: #00d68f15; color: var(--green); }
+  .delta-neg { background: #ff6b6b15; color: var(--red); }
+
+  /* ── Chart containers ── */
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 24px 20px 16px; margin-bottom: 16px;
+  }
+  .chart-title {
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 20px;
+  }
+  .chart-wrap { position: relative; }
+
+  /* ── Footer ── */
+  footer { color: var(--subtle); font-size: 10px; text-align: center; margin-top: 20px; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════
+     DATA — derived directly from CSV via Python
+     ════════════════════════════════════════════ -->
+<script>
+const CSV_DATA = {
+  pre: {
+    label: "Jan 23 \u2013 Feb 12",
+    total: 14300,
+    days: 21,
+    rr: [7.81,10.76,12.77,14.41,15.69,16.9,18.02,19.04,19.99,20.9,21.74,22.53,23.34,24.36,25.32,26.43,27.74,29.24,30.81,33.56,36.52],
+    cr: [2.42,3.87,5.21,6.38,7.41,8.34,9.25,10.34,11.1,11.77,12.55,13.17,13.87,14.55,15.29,16.04,16.79,17.51,18.2,19.03,19.5]
+  },
+  post: {
+    label: "Feb 13 \u2013 Feb 20",
+    total: 5890,
+    days: 8,
+    rr: [7.4,9.73,11.73,13.4,14.41,15.6,16.33,17.27,18.46,19.37,20.27,21.14,21.83,22.67,23.55,24.5,25.48,26.33,27.08,28.4,29.97],
+    cr: [3.33,5.16,6.42,7.57,8.9,10.41,11.29,12.21,13.02,13.74,14.58,15.31,16.03,16.74,17.47,18.29,19.13,19.64,20.07,20.65,20.8]
+  }
+};
+
+const DAYS   = Array.from({length: 21}, (_, i) => `D${i+1}`);
+const AMBER  = '#F4B942';
+const TEAL   = '#64ffda';
+const RED    = '#ff6b6b';
+const GREEN  = '#00d68f';
+const MUTED  = '#8892b0';
+
+// Build chart data array
+function buildData(metric) {
+  return DAYS.map((d, i) => ({
+    day: d,
+    pre:   CSV_DATA.pre[metric][i],
+    post:  CSV_DATA.post[metric][i],
+    delta: parseFloat((CSV_DATA.post[metric][i] - CSV_DATA.pre[metric][i]).toFixed(2))
+  }));
+}
+</script>
+
+<!-- ════════════════════════════════════════════
+     MARKUP
+     ════════════════════════════════════════════ -->
+
+<div class="header">
+  <div class="header-row">
+    <div class="accent-bar"></div>
+    <h1>Router Pickup Recovery Cohort</h1>
+    <span class="badge">nPayG · Jan–Feb 2026</span>
+  </div>
+  <p class="subtitle">Cumulative recovery rate (% of tickets) · D1 through D21</p>
+</div>
+
+<!-- Period chips (filled by JS) -->
+<div class="periods" id="periods"></div>
+
+<!-- Tabs -->
+<div class="controls">
+  <button class="tab-btn active" onclick="setTab('rr')">🔴 Router Recovered</button>
+  <button class="tab-btn"        onclick="setTab('cr')">🟢 Customer Recharged</button>
+  <button class="delta-btn" id="deltaBtn" onclick="toggleDelta()">▲▼ Show Delta</button>
+</div>
+
+<!-- Stat cards -->
+<div class="stats" id="stats"></div>
+
+<!-- Main area chart -->
+<div class="chart-card">
+  <p class="chart-title" id="mainTitle">Router Recovered % · Cumulative by Day</p>
+  <div class="chart-wrap"><canvas id="mainChart" height="90"></canvas></div>
+</div>
+
+<!-- Delta bar chart (hidden initially) -->
+<div class="chart-card" id="deltaCard" style="display:none;">
+  <p class="chart-title">Δ Delta (Post − Pre) in percentage points</p>
+  <div class="chart-wrap"><canvas id="deltaChart" height="55"></canvas></div>
+</div>
+
+<footer id="footer"></footer>
+
+<!-- ════════════════════════════════════════════
+     CHART.JS LOGIC
+     ════════════════════════════════════════════ -->
+<script>
+let activeTab   = 'rr';
+let showDelta   = false;
+let mainChart   = null;
+let deltaChart  = null;
+
+/* ── common tooltip ── */
+const tooltipPlugin = {
+  callbacks: {
+    title: items => items[0].label,
+    label: item => {
+      const v = item.raw;
+      const isDelta = item.dataset.label.startsWith('Δ');
+      return `  ${item.dataset.label}: ${isDelta ? (v>=0?'+':'')+v.toFixed(2)+'pp' : v.toFixed(2)+'%'}`;
+    }
+  },
+  backgroundColor: '#0f1117',
+  borderColor: '#2a2d3e',
+  borderWidth: 1,
+  titleColor: MUTED,
+  bodyColor: '#e6f1ff',
+  padding: 12,
+  titleFont: { family: "'DM Mono', monospace", size: 11 },
+  bodyFont:  { family: "'DM Mono', monospace", size: 12 },
+  cornerRadius: 10,
+  displayColors: true,
+  boxPadding: 4
+};
+
+const gridOpts = { color: '#1e2235', drawTicks: false };
+const tickOpts = { color: MUTED, font: { family: "'DM Mono',monospace", size: 11 }, padding: 8 };
+
+/* ── Build / rebuild main chart ── */
+function buildMainChart() {
+  const metric = activeTab;
+  const isRR   = metric === 'rr';
+  const data   = buildData(metric);
+  const postColor = isRR ? RED : TEAL;
+
+  if (mainChart) { mainChart.destroy(); mainChart = null; }
+
+  const ctx = document.getElementById('mainChart').getContext('2d');
+
+  // gradient fills
+  const gradPre  = ctx.createLinearGradient(0, 0, 0, 320);
+  gradPre.addColorStop(0, AMBER + '28');
+  gradPre.addColorStop(1, AMBER + '00');
+
+  const gradPost = ctx.createLinearGradient(0, 0, 0, 320);
+  gradPost.addColorStop(0, postColor + '28');
+  gradPost.addColorStop(1, postColor + '00');
+
+  mainChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: DAYS,
+      datasets: [
+        {
+          label: `Pre  (${CSV_DATA.pre.label})`,
+          data: data.map(d => d.pre),
+          borderColor: AMBER,
+          backgroundColor: gradPre,
+          borderWidth: 2.5,
+          fill: true,
+          tension: 0.35,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: AMBER
+        },
+        {
+          label: `Post (${CSV_DATA.post.label})`,
+          data: data.map(d => d.post),
+          borderColor: postColor,
+          backgroundColor: gradPost,
+          borderWidth: 2.5,
+          borderDash: isRR ? [6,3] : [],
+          fill: true,
+          tension: 0.35,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: postColor
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: { color: MUTED, font: { family: "'DM Sans',sans-serif", size: 12 },
+                    boxWidth: 24, boxHeight: 3, usePointStyle: false, padding: 20 }
+        },
+        tooltip: tooltipPlugin
+      },
+      scales: {
+        x: { grid: { ...gridOpts, drawOnChartArea: false }, ticks: tickOpts, border: { color: '#2a2d3e' } },
+        y: {
+          grid: gridOpts, ticks: { ...tickOpts, callback: v => v + '%' },
+          border: { dash: [3,3], color: 'transparent' }
+        }
+      }
+    }
+  });
+}
+
+/* ── Build / rebuild delta chart ── */
+function buildDeltaChart() {
+  const metric = activeTab;
+  const isRR   = metric === 'rr';
+  const data   = buildData(metric);
+  const barColor = isRR ? RED : GREEN;
+
+  if (deltaChart) { deltaChart.destroy(); deltaChart = null; }
+
+  const ctx = document.getElementById('deltaChart').getContext('2d');
+  deltaChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: DAYS,
+      datasets: [{
+        label: `Δ ${isRR ? 'RR' : 'CR'} (Post−Pre)`,
+        data: data.map(d => d.delta),
+        backgroundColor: data.map(d => d.delta >= 0 ? GREEN + 'cc' : RED + 'cc'),
+        borderColor:     data.map(d => d.delta >= 0 ? GREEN : RED),
+        borderWidth: 1,
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: tooltipPlugin
+      },
+      scales: {
+        x: { grid: { ...gridOpts, drawOnChartArea: false }, ticks: tickOpts, border: { color: '#2a2d3e' } },
+        y: {
+          grid: gridOpts,
+          ticks: { ...tickOpts, callback: v => (v > 0 ? '+' : '') + v + 'pp' },
+          border: { dash: [3,3], color: 'transparent' }
+        }
+      }
+    }
+  });
+}
+
+/* ── Stat cards ── */
+function renderStats() {
+  const metric   = activeTab;
+  const isRR     = metric === 'rr';
+  const postColor = isRR ? '#ff6b6b' : TEAL;
+  const container = document.getElementById('stats');
+  container.innerHTML = '';
+
+  [1, 7, 14, 21].forEach(d => {
+    const i     = d - 1;
+    const pre   = CSV_DATA.pre[metric][i];
+    const post  = CSV_DATA.post[metric][i];
+    const delta = parseFloat((post - pre).toFixed(2));
+    const pos   = delta >= 0;
+
+    const card = document.createElement('div');
+    card.className = 'stat-card';
+    card.style.border = `1px solid ${pos ? '#00d68f22' : '#ff6b6b22'}`;
+    card.innerHTML = `
+      <p class="stat-label">By Day ${d}</p>
+      <div class="stat-values">
+        <span class="stat-pre">${pre.toFixed(1)}%</span>
+        <span class="stat-arrow">→</span>
+        <span class="stat-post" style="color:${postColor}">${post.toFixed(1)}%</span>
+      </div>
+      <span class="stat-delta ${pos ? 'delta-pos' : 'delta-neg'}">
+        ${pos ? '▲' : '▼'} ${Math.abs(delta).toFixed(1)}pp
+      </span>
+    `;
+    container.appendChild(card);
+  });
+}
+
+/* ── Period chips ── */
+function renderPeriods() {
+  document.getElementById('periods').innerHTML = [
+    { label: 'Pre-period', color: AMBER,  period: CSV_DATA.pre.label,  tickets: CSV_DATA.pre.total,  days: CSV_DATA.pre.days  },
+    { label: 'Post-period (feature released)', color: TEAL, period: CSV_DATA.post.label, tickets: CSV_DATA.post.total, days: CSV_DATA.post.days }
+  ].map(p => `
+    <div class="period-chip">
+      <div class="chip-line" style="background:${p.color}"></div>
+      <div>
+        <p class="chip-label" style="color:${p.color}">${p.label}</p>
+        <p class="chip-sub">${p.period} · <span>${p.tickets.toLocaleString()} tickets · ${p.days} days</span></p>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ── Footer ── */
+function renderFooter() {
+  document.getElementById('footer').textContent =
+    `nPayG · Pre: ${CSV_DATA.pre.label} (${CSV_DATA.pre.total.toLocaleString()} tickets) · Post: ${CSV_DATA.post.label} (${CSV_DATA.post.total.toLocaleString()} tickets) · Cumulative recovery %`;
+}
+
+/* ── Chart title ── */
+function updateTitle() {
+  document.getElementById('mainTitle').textContent =
+    (activeTab === 'rr' ? 'Router Recovered %' : 'Customer Recharged %') + ' · Cumulative by Day';
+}
+
+/* ── Tab buttons sync ── */
+function syncTabBtns() {
+  document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', (i === 0 && activeTab === 'rr') || (i === 1 && activeTab === 'cr'));
+  });
+}
+
+/* ── Public handlers ── */
+function setTab(tab) {
+  activeTab = tab;
+  syncTabBtns();
+  updateTitle();
+  renderStats();
+  buildMainChart();
+  if (showDelta) buildDeltaChart();
+}
+
+function toggleDelta() {
+  showDelta = !showDelta;
+  const btn  = document.getElementById('deltaBtn');
+  const card = document.getElementById('deltaCard');
+  btn.classList.toggle('active', showDelta);
+  btn.textContent = showDelta ? '▲▼ Hide Delta' : '▲▼ Show Delta';
+  card.style.display = showDelta ? 'block' : 'none';
+  if (showDelta) buildDeltaChart();
+}
+
+/* ── Init ── */
+renderPeriods();
+renderStats();
+renderFooter();
+updateTitle();
+buildMainChart();
+</script>
+</body>
+</html>
