@@ -136,6 +136,12 @@
       </select>
     </div>
     <div class="filter-group">
+      <span class="filter-label">Ticket Created at R15</span>
+      <select class="filter-select" id="r15Filter">
+        <option value="all">All</option>
+      </select>
+    </div>
+    <div class="filter-group">
       <span class="filter-label">Pre — From</span>
       <input class="filter-input" type="date" id="preFrom"/>
     </div>
@@ -263,6 +269,7 @@ async function loadData() {
     document.getElementById('mainContent').style.display = 'block';
 
     autoSetDates();
+    populateR15Filter();
     applyFilters();
 
     const now = new Date().toLocaleString('en-IN', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
@@ -287,6 +294,30 @@ async function loadData() {
     document.getElementById('refreshBtn').disabled = false;
     document.getElementById('dataBadge').textContent = 'Fetch failed';
   }
+}
+
+/* ═══════════════════════════════════
+   POPULATE R15 FILTER
+═══════════════════════════════════ */
+function populateR15Filter() {
+  const sel = document.getElementById('r15Filter');
+  const col = 'TICKET_CREATED_AT_R15';
+  sel.parentElement.style.display = 'flex'; // always show
+  if (!rawRows.length || !(col in rawRows[0])) {
+    sel.innerHTML = '<option value="all">Not in data yet</option>';
+    sel.disabled = true;
+    sel.style.opacity = '0.4';
+    return;
+  }
+  sel.disabled = false;
+  sel.style.opacity = '1';
+  const vals = [...new Set(rawRows.map(r => r[col]).filter(v => v !== '' && v != null))].sort();
+  sel.innerHTML = '<option value="all">All</option>';
+  vals.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v; opt.textContent = v;
+    sel.appendChild(opt);
+  });
 }
 
 /* ═══════════════════════════════════
@@ -361,9 +392,12 @@ function applyFilters() {
   if (!rawRows.length) return;
 
   function filterRows(from,to) {
+    const r15Val = document.getElementById('r15Filter').value;
     return rawRows.filter(r=>{
       const d=parseDateStr(r.DT);
-      return (cx==='all'||r.CX_TYPE===cx) && d>=from && d<=to;
+      const cxOk  = cx==='all' || r.CX_TYPE===cx;
+      const r15Ok = r15Val==='all' || !r.TICKET_CREATED_AT_R15 || r.TICKET_CREATED_AT_R15===r15Val;
+      return cxOk && r15Ok && d>=from && d<=to;
     });
   }
 
