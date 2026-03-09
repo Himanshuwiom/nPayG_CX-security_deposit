@@ -134,11 +134,17 @@ const CSV_DATA = {
   }
 };
 
+// Compute Total Recovery = rr + cr for each day
+['pre','post'].forEach(p => {
+  CSV_DATA[p].tr = CSV_DATA[p].rr.map((v, i) => parseFloat((v + CSV_DATA[p].cr[i]).toFixed(2)));
+});
+
 const DAYS   = Array.from({length: 21}, (_, i) => `D${i+1}`);
 const AMBER  = '#F4B942';
 const TEAL   = '#64ffda';
 const RED    = '#ff6b6b';
 const GREEN  = '#00d68f';
+const PURPLE = '#c084fc';
 const MUTED  = '#8892b0';
 
 // Build chart data array
@@ -172,6 +178,7 @@ function buildData(metric) {
 <div class="controls">
   <button class="tab-btn active" onclick="setTab('rr')">🔴 Router Recovered</button>
   <button class="tab-btn"        onclick="setTab('cr')">🟢 Customer Recharged</button>
+  <button class="tab-btn"        onclick="setTab('tr')">🟣 Total Recovery</button>
   <button class="delta-btn" id="deltaBtn" onclick="toggleDelta()">▲▼ Show Delta</button>
 </div>
 
@@ -231,8 +238,9 @@ const tickOpts = { color: MUTED, font: { family: "'DM Mono',monospace", size: 11
 function buildMainChart() {
   const metric = activeTab;
   const isRR   = metric === 'rr';
+  const isTR   = metric === 'tr';
   const data   = buildData(metric);
-  const postColor = isRR ? RED : TEAL;
+  const postColor = isRR ? RED : isTR ? PURPLE : TEAL;
 
   if (mainChart) { mainChart.destroy(); mainChart = null; }
 
@@ -304,8 +312,9 @@ function buildMainChart() {
 function buildDeltaChart() {
   const metric = activeTab;
   const isRR   = metric === 'rr';
+  const isTR   = metric === 'tr';
   const data   = buildData(metric);
-  const barColor = isRR ? RED : GREEN;
+  const barColor = isRR ? RED : isTR ? PURPLE : GREEN;
 
   if (deltaChart) { deltaChart.destroy(); deltaChart = null; }
 
@@ -315,7 +324,7 @@ function buildDeltaChart() {
     data: {
       labels: DAYS,
       datasets: [{
-        label: `Δ ${isRR ? 'RR' : 'CR'} (Post−Pre)`,
+        label: `Δ ${isRR ? 'RR' : isTR ? 'TR' : 'CR'} (Post−Pre)`,
         data: data.map(d => d.delta),
         backgroundColor: data.map(d => d.delta >= 0 ? GREEN + 'cc' : RED + 'cc'),
         borderColor:     data.map(d => d.delta >= 0 ? GREEN : RED),
@@ -346,7 +355,8 @@ function buildDeltaChart() {
 function renderStats() {
   const metric   = activeTab;
   const isRR     = metric === 'rr';
-  const postColor = isRR ? '#ff6b6b' : TEAL;
+  const isTR     = metric === 'tr';
+  const postColor = isRR ? '#ff6b6b' : isTR ? PURPLE : TEAL;
   const container = document.getElementById('stats');
   container.innerHTML = '';
 
@@ -400,13 +410,14 @@ function renderFooter() {
 /* ── Chart title ── */
 function updateTitle() {
   document.getElementById('mainTitle').textContent =
-    (activeTab === 'rr' ? 'Router Recovered %' : 'Customer Recharged %') + ' · Cumulative by Day';
+    (activeTab === 'rr' ? 'Router Recovered %' : activeTab === 'tr' ? 'Total Recovery % (Router + Recharge)' : 'Customer Recharged %') + ' · Cumulative by Day';
 }
 
 /* ── Tab buttons sync ── */
 function syncTabBtns() {
+  const tabs = ['rr', 'cr', 'tr'];
   document.querySelectorAll('.tab-btn').forEach((btn, i) => {
-    btn.classList.toggle('active', (i === 0 && activeTab === 'rr') || (i === 1 && activeTab === 'cr'));
+    btn.classList.toggle('active', tabs[i] === activeTab);
   });
 }
 
